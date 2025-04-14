@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Dashboard</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <a class="navbar-brand" href="#">Service Dashboard</a>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ml-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('customer_dashboard') }}">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('customer_search') }}">Search</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('customer_request_service') }}">Request Service</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('requested_services') }}">Requested Services</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('show_service_requests') }}">Review</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    
+    <!-- Home Dashboard -->
+    {% if view == 'home' %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">Available Services</div>
+      <div class="card-body">
+        <table class="table table-striped">
+          <thead class="thead-dark">
+            <tr>
+              <th>Service Name</th>
+              <th>Description</th>
+              <th>Category</th>
+              <th>Base Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for service in services %}
+              <tr>
+                <td>{{ service.name }}</td>
+                <td>{{ service.description }}</td>
+                <td>{{ service.category }}</td>
+                <td>${{ service.base_price }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Search Functionality -->
+    {% if view == 'search' %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">Search Functionality</div>
+      <div class="card-body">
+        <form action="/customer-dashboard/search" method="get" class="form-inline mb-3">
+          <label class="mr-2" for="searchBy">Search By:</label>
+          <select id="searchBy" name="searchBy" class="form-control mr-2">
+            <option value="service">Service</option>
+            <option value="professional">Professional</option>
+            <option value="request">Request</option>
+          </select>
+          <input type="text" id="searchText" name="searchText" class="form-control mr-2" placeholder="Enter search text">
+          <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+        
+        {% if results %}
+          <h3>Search Results:</h3>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Type</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for result in results %}
+              <tr>
+                <td>{{ result.id }}</td>
+                <td>
+                  {% if result.__class__.__name__ == 'Service' %} Service
+                  {% elif result.__class__.__name__ == 'Professional' %} Professional
+                  {% elif result.__class__.__name__ == 'ServiceRequest' %} Service Request
+                  {% endif %}
+                </td>
+                <td>
+                  {% if result.__class__.__name__ == 'Service' %}
+                    {{ result.name }} - {{ result.category }}
+                  {% elif result.__class__.__name__ == 'Professional' %}
+                    {{ result.fullname }} - {{ result.status }}
+                  {% elif result.__class__.__name__ == 'ServiceRequest' %}
+                    {{ result.service.name }} - {{ result.status }}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Request Service -->
+    {% if view == 'request-service' %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">Request Service</div>
+      <div class="card-body">
+        <form id="requestServiceForm">
+          <div class="form-group">
+            <label for="requestDate">Date:</label>
+            <input type="date" id="requestDate" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="category">Category:</label>
+            <select id="category" class="form-control" required onchange="loadServices()">
+              <option value="">Select Category</option>
+              <option value="Plumbing">Plumbing</option>
+              <option value="Electrician">Electrician</option>
+              <option value="Cleaning">Cleaning</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="service">Service:</label>
+            <select id="service" class="form-control" required onchange="loadProfessionals()">
+              <option value="">Select Service</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="professional">Professional:</label>
+            <select id="professional" class="form-control" required>
+              <option value="">Select Professional</option>
+            </select>
+          </div>
+          <button class="btn btn-success" type="button" onclick="submitServiceRequest()">Request Service</button>
+          <div id="requestSuccess" class="text-success mt-3" style="display: none;">Service request submitted successfully!</div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Requested Services List -->
+    {% if view == 'requested-services' %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">Requested Services</div>
+      <div class="card-body">
+        {% for status, services in categorized_services.items() %}
+          <h4 class="text-primary">{{ status }} Services</h4>
+          {% if services %}
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Professional Name</th>
+                <th>Professional Email</th>
+                <th>Location</th>
+                <th>Service</th>
+                <th>Category</th>
+                <th>Date Requested</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for service in services %}
+              <tr>
+                <td>{{ service.id }}</td>
+                <td>{{ service.professional.fullname }}</td>
+                <td>{{ service.professional.email }}</td>
+                <td>{{ service.customer.address }}</td>
+                <td>{{ service.service.name }}</td>
+                <td>{{ service.service.category }}</td>
+                <td>{{ service.request_date.strftime('%m/%d/%Y') }}</td>
+                <td>{{ service.status }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p>No {{ status }} services found.</p>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Review Section -->
+    {% if view == 'review' %}
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">Review Completed Services</div>
+      <div class="card-body">
+        <h5>Services Completed But Not Rated Yet</h5>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Service Name</th>
+              <th>Professional</th>
+              <th>Request Date</th>
+              <th>Rating</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for request in service_requests %}
+            <tr>
+              <td>{{ request.service.name }}</td>
+              <td>{{ request.professional.fullname }}</td>
+              <td>{{ request.request_date }}</td>
+              <td>
+                <input type="number" class="form-control" id="rating_{{ request.id }}" min="1" max="5" placeholder="Rate 1-5">
+              </td>
+              <td>
+                <button class="btn btn-primary" onclick="submitRating({{ request.id }})">Submit Rating</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script>
+    // JavaScript functions
+    // Function to filter services based on search input
+    function filterServices() {
+      const searchValue = document.getElementById('searchInput').value.toLowerCase();
+      const services = document.querySelectorAll('#serviceList .service-item');
+      services.forEach(service => {
+        const name = service.getAttribute('data-name').toLowerCase();
+        if (name.includes(searchValue)) {
+          service.style.display = '';
+        } else {
+          service.style.display = 'none';
+        }
+      });
+    }
+
+    // Function to load services based on selected category
+    function loadServices() {
+      const category = document.getElementById('category').value;
+      const serviceDropdown = document.getElementById('service');
+      serviceDropdown.innerHTML = `<option value="">Select Service</option>`;
+
+      fetch(`/get_services/${category}`)
+        .then(response => response.json())
+        .then(data => {
+          data.services.forEach(service => {
+            serviceDropdown.innerHTML += `<option value="${service.id}">${service.name}</option>`;
+          });
+        });
+    }
+
+    // Function to load professionals based on selected category
+    function loadProfessionals() {
+      const category = document.getElementById('category').value;
+      const professionalDropdown = document.getElementById('professional');
+      professionalDropdown.innerHTML = `<option value="">Select Professional</option>`;
+
+      fetch(`/get_professionals/${category}`)
+        .then(response => response.json())
+        .then(data => {
+          data.professionals.forEach(professional => {
+            professionalDropdown.innerHTML += `<option value="${professional.id}">${professional.fullname}</option>`;
+          });
+        });
+    }
+
+    // Function to submit service request
+    function submitServiceRequest() {
+      const requestDate = document.getElementById('requestDate').value;
+      const serviceId = document.getElementById('service').value;
+      const professionalId = document.getElementById('professional').value;
+
+      fetch('/customer/request-service', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+              requestDate,
+              serviceId,
+              professionalId
+          })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              document.getElementById('requestSuccess').style.display = 'block';
+              document.getElementById('requestServiceForm').reset();
+          }
+      });
+    }
+
+    // Submit the rating when the "Submit Rating" button is clicked
+    function submitRating(serviceRequestId) {
+      // Get the rating value entered by the customer
+      const rating = document.getElementById(`rating_${serviceRequestId}`).value;
+
+      // Validate that a rating between 1 and 5 is selected
+      if (!rating || rating < 1 || rating > 5) {
+          alert("Please select a rating between 1 and 5.");
+          return;
+      }
+
+      // Prepare the rating data
+      const ratingData = {
+          serviceRequestId: serviceRequestId,
+          rating: rating
+      };
+
+      // Send the rating data 
+      fetch('/customer/submit_rating', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(ratingData)
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              alert("Rating submitted successfully!");
+              // Optionally, reload the page or update the table
+              location.reload();
+          } else {
+              alert("Failed to submit rating: " + data.message);
+          }
+      })
+      .catch(error => console.error("Error:", error));
+  }
+  </script>
+
+</body>
+</html>
